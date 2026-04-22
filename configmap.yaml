@@ -1,0 +1,93 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: flink-flinktest-config
+  namespace: flinkflinktest
+  labels:
+    app: flink
+data:
+  flink-conf.yaml: |+
+    jobmanager.rpc.address: flink-jobmanager
+    taskmanager.numberOfTaskSlots: 14
+    blob.server.port: 6124
+    jobmanager.rpc.port: 6123
+    taskmanager.rpc.port: 6122
+    queryable-state.proxy.ports: 6125
+    jobmanager.memory.process.size: 8192m
+    #jobmanager.memory.jvm-metaspace.size: 1024m
+    taskmanager.memory.process.size: 20480m
+    taskmanager.memory.jvm-metaspace.size: 1024m
+    parallelism.default: 2
+    kubernetes.cluster-id: flinkflinktestk8
+    high-availability: org.apache.flink.kubernetes.highavailability.KubernetesHaServicesFactory
+    high-availability.storageDir: file:///flink_storage/recovery04
+    jobmanager.archive.fs.dir: file:///flink_storage/archive_fs_dir04
+    restart-strategy: failure-rate
+    restart-strategy.failure-rate.failure-rate-interval: 120s
+    restart-strategy.failure-rate.max-failures-per-interval: 2
+    restart-strategy.failure-rate.delay: 40s
+    state.backend: filesystem
+    state.backend.fs.checkpointdir: file:///flink_storage/data/state04
+    state.backend.incremental: false
+    state.checkpoints.num-retained: 10
+    web.upload.dir: /flink_storage/upload04
+    cluster.evenly-spread-out-slots: true
+    web.checkpoints.history: 10
+    web.history: 10
+    jobmanager.execution.attempts-history-size: 10
+    web.log.path: /flink_storage/jobmanager_log_dir04
+    web.submit.enable: true
+    web.tmpdir: /flink_storage/tmpdir04
+    #security.kerberos.login.use-ticket-cache: true
+    #security.kerberos.login.contexts: Client,KafkaClient
+    #security.kerberos.login.keytab: /opt/flink/keytabs/spark.headless.keytab
+    #security.kerberos.login.principal: spark-rabfprd@RABFPRD.COM
+
+  log4j-console.properties: |+
+    # This affects logging for both user code and Flink
+    rootLogger.level = INFO
+    rootLogger.appenderRef.console.ref = ConsoleAppender
+    rootLogger.appenderRef.rolling.ref = RollingFileAppender
+
+    # Uncomment this if you want to _only_ change Flink's logging
+    #logger.flink.name = org.apache.flink
+    #logger.flink.level = INFO
+
+    # The following lines keep the log level of common libraries/connectors on
+    # log level INFO. The root logger does not override this. You have to manually
+    # change the log levels here.
+    logger.akka.name = akka
+    logger.akka.level = INFO
+    logger.kafka.name= org.apache.kafka
+    logger.kafka.level = INFO
+    logger.hadoop.name = org.apache.hadoop
+    logger.hadoop.level = INFO
+    logger.zookeeper.name = org.apache.zookeeper
+    logger.zookeeper.level = INFO
+    logger.jdbc.name = org.apache.flink.api.java.io.jdbc
+    logger.jdbc.level = ERROR
+
+    # Log all infos to the console
+    appender.console.name = ConsoleAppender
+    appender.console.type = CONSOLE
+    appender.console.layout.type = PatternLayout
+    appender.console.layout.pattern = %d{yyyy-MM-dd HH:mm:ss,SSS} %-5p %-60c %x - %m%n
+
+    # Log all infos in the given rolling file
+    appender.rolling.name = RollingFileAppender
+    appender.rolling.type = RollingFile
+    appender.rolling.append = false
+    appender.rolling.fileName = ${sys:log.file}
+    appender.rolling.filePattern = ${sys:log.file}.%i
+    appender.rolling.layout.type = PatternLayout
+    appender.rolling.layout.pattern = %d{yyyy-MM-dd HH:mm:ss,SSS} %-5p %-60c %x - %m%n
+    appender.rolling.policies.type = Policies
+    appender.rolling.policies.size.type = SizeBasedTriggeringPolicy
+    appender.rolling.policies.size.size=100MB
+    appender.rolling.strategy.type = DefaultRolloverStrategy
+    appender.rolling.strategy.max = 10
+    appender.rolling.maxFileSize = 1GB
+
+    # Suppress the irrelevant (wrong) warnings from the Netty channel handler
+    logger.netty.name = org.apache.flink.shaded.akka.org.jboss.netty.channel.DefaultChannelPipeline
+    logger.netty.level = OFF

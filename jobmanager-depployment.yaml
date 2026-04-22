@@ -1,0 +1,107 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flink-jobmanager
+  namespace: flinkfusion02
+spec:
+  replicas: 1 # Set the value to greater than 1 to start standby JobManagers
+  selector:
+    matchLabels:
+      app: flink
+      component: jobmanager
+  template:
+    metadata:
+      labels:
+        app: flink
+        component: jobmanager
+    spec:
+      imagePullSecrets:
+        - name: my-registry-secret
+      #nodeSelector:
+        #nodepool: HULK
+
+      containers:
+      - name: jobmanager
+        #image: flink-java11-krb5:1.13.6
+        image: linkkrb5kdc_1.18v2:latest
+        resources:
+          requests:
+            memory: "8000Mi"
+            cpu: "1000m"
+          limits:
+            memory: "10000Mi"
+            cpu: "2000m"
+
+        env:
+        - name: DEMO_GREETING1
+          value: "02"
+        - name: FLINK_ENV_JAVA_OPTS_JM
+          value: "-XX:+UseG1GC"
+        - name: TZ
+          value: "Asia/Kolkata"
+        #- name: KAFKA_OPTS
+         # value: "-Djava.security.auth.login.config=/rradlk_flink_storage/kafka/kafka_client_jaas.conf"
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: status.podIP
+        # The following args overwrite the value of jobmanager.rpc.address configured in the configuration config map to POD_IP.
+        args: ["jobmanager", "$(POD_IP)"]
+        ports:
+        - containerPort: 6123
+          name: rpc
+        - containerPort: 6124
+          name: blob-server
+        - containerPort: 8081
+          name: webui
+        livenessProbe:
+          tcpSocket:
+            port: 6123
+          initialDelaySeconds: 30
+          periodSeconds: 60
+        volumeMounts:
+        - name: flink-config-volume
+          mountPath: /opt/flink/conf
+        - name: flink-jar-deps
+          mountPath: /opt/flink/lib
+        - name: flink-storage-dir
+          mountPath: /flink_storage
+        - name: kafka-acl-jks
+          mountPath: /opt/pvtlinktruststore.jks
+        - name: newjks
+          mountPath: /newjks/
+        - name: krb5-config
+          mountPath: /etc/krb5.conf
+          
+
+      securityContext:
+          runAsUser: 9999  # refers to user _flink_ from official flink image, change if necessary
+      serviceAccountName: flink-fusion02-account # Service account which has the permissions to create, edit, delete ConfigMaps
+#      serviceAccountName: default
+      volumes:
+      - name: newjks
+        hostPath:
+            path: /NAS/newjks
+      - name: flink-storage-dir
+        hostPath:
+            path: /NAS/rradlk_flink_storage/fusion02
+      - name: flink-jar-deps
+        hostPath:
+           # directory location on host
+            path: /NAS/flink_depjars_1.18.1
+      - name: kafka-acl-jks
+        hostPath:
+            path: /NAS/kafka_acl/pvtlinktruststore.jks
+      - name: krb5-config
+        hostPath:
+            path: /NAS/fusion3_krb/krb5.conf
+            
+      - name: flink-config-volume
+        configMap:
+          name: flink-fusion02-config
+          items:
+          - key: flink-conf.yaml
+            path: flink-conf.yaml
+          - key: log4j-console.properties
+            path: log4j-console.properties

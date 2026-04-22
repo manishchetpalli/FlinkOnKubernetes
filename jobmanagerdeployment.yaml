@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flink-taskmanager
+  namespace: flinkfusion02
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: flink
+      component: taskmanager
+  template:
+    metadata:
+      labels:
+        app: flink
+        component: taskmanager
+    spec:
+      #imagePullSecrets:
+        #- name: my-registry-secret
+      #nodeSelector:
+        #group5: ajiob2c03
+
+      containers:
+      - name: taskmanager
+        #image: flink-java11-krb5:1.13.6
+        image: /flinkkrb5kdc_1.18v2:latest
+        resources:
+          requests:
+            memory: "4096Mi"
+            cpu: "1000m"
+          limits:
+            memory: "20480Mi"
+            cpu: "17000m"
+
+        env:
+            - name: DEMO_GREETING
+              value: "tf1"
+            - name: TZ
+              value: "Asia/Kolkata"
+        args: ["taskmanager"]
+        ports:
+        - containerPort: 6122
+          name: rpc
+        - containerPort: 6125
+          name: query-state
+        livenessProbe:
+          tcpSocket:
+            port: 6122
+          initialDelaySeconds: 30
+          periodSeconds: 60
+        volumeMounts:
+        - name: flink-config-volume
+          mountPath: /opt/flink/conf/
+        - mountPath: /opt/flink/lib
+          name: flink-jar-deps
+        - name: flink-storage-dir
+          mountPath: /flink_storage
+        - name: kafka-acl-jks
+          mountPath: /opt/pvtlinktruststore.jks
+        - name: newjks
+          mountPath: /newjks/
+        - name: krb5-config
+          mountPath: /etc/krb5.conf
+            
+
+        securityContext:
+          runAsUser: 9999  # refers to user _flink_ from official flink image, change if necessary
+      serviceAccountName: flink-fusion02-account
+      volumes:
+      - name: newjks
+        hostPath:
+            path: /NAS/newjks
+      - name: flink-storage-dir
+        hostPath:
+            path: /NAS/rradlk_flink_storage/fusion02
+      - name: flink-jar-deps
+        hostPath:
+           # directory location on host
+           path: /NAS/flink_depjars_1.18.1
+      - name: kafka-acl-jks
+        hostPath:
+            path: /NAS/kafka_acl/pvtlinktruststore.jks
+      - name: krb5-config
+        hostPath:
+            path: /NAS/fusion3_krb/krb5.conf
+
+      - name: flink-config-volume
+        configMap:
+          name: flink-fusion02-config
+          items:
+          - key: flink-conf.yaml
+            path: flink-conf.yaml
+          - key: log4j-console.properties
+            path: log4j-console.properties
+
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - flink
+              - key: component
+                operator: In
+                values:
+                - taskmanager
+            topologyKey: "kubernetes.io/hostnamei"
